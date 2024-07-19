@@ -11,7 +11,6 @@ class Blockchain(object):
         self.current_transactions = []
         self.chain = []
 
-        # Create the genesis block
         self.new_block(previous_hash=1, proof=100)
 
     def new_block(self, proof: int, previous_hash: str = None) -> dict:
@@ -30,7 +29,6 @@ class Blockchain(object):
             'previous_hash': previous_hash or self.hash(self.chain[-1]),
         }
 
-        # Reset the current list of transactions
         self.current_transactions = []
 
         self.chain.append(block)
@@ -64,7 +62,6 @@ class Blockchain(object):
         :return: <str>
         """
 
-        # We must make sure that the Dictionary is Ordered, or we'll have inconsistent hashes
         block_string = json.dumps(block, sort_keys=True).encode()
         return hashlib.sha256(block_string).hexdigest()
     
@@ -111,11 +108,10 @@ class Blockchain(object):
             print(f'{last_block}')
             print(f'{block}')
             print("\n-----------\n")
-            # Check that the hash of the block is correct
+
             if block['previous_hash'] != self.hash(last_block):
                 return False
 
-            # Check that the Proof of Work is correct
             if not self.valid_proof(last_block['proof'], block['proof']):
                 return False
 
@@ -134,10 +130,8 @@ class Blockchain(object):
         neighbours = self.nodes
         new_chain = None
 
-        # We're only looking for chains longer than ours
         max_length = len(self.chain)
 
-        # Grab and verify the chains from all the nodes in our network
         for node in neighbours:
             response = requests.get(f'http://{node}/chain')
 
@@ -145,44 +139,34 @@ class Blockchain(object):
                 length = response.json()['length']
                 chain = response.json()['chain']
 
-                # Check if the length is longer and the chain is valid
                 if length > max_length and self.valid_chain(chain):
                     max_length = length
                     new_chain = chain
 
-        # Replace our chain if we discovered a new, valid chain longer than ours
         if new_chain:
             self.chain = new_chain
             return True
 
         return False
     
-# Instantiate our Node
 app = Flask(__name__)
 
-# Generate a globally unique address for this node
 node_identifier = str(uuid4()).replace('-', '')
 
-# Instantiate the Blockchain
 blockchain = Blockchain()
-
 
 @app.route('/mine', methods=['GET'])
 def mine():
-    # We run the proof of work algorithm to get the next proof...
     last_block = blockchain.last_block
     last_proof = last_block['proof']
     proof = blockchain.proof_of_work(last_proof)
 
-    # We must receive a reward for finding the proof.
-    # The sender is "0" to signify that this node has mined a new coin.
     blockchain.new_transaction(
         sender="0",
         recipient=node_identifier,
         amount=1,
     )
 
-    # Forge the new Block by adding it to the chain
     previous_hash = blockchain.hash(last_block)
     block = blockchain.new_block(proof, previous_hash)
 
@@ -199,12 +183,10 @@ def mine():
 def new_transaction():
     values = request.get_json()
 
-    # Check that the required fields are in the POST'ed data
     required = ['sender', 'recipient', 'amount']
     if not all(k in values for k in required):
         return 'Missing values', 400
 
-    # Create a new Transaction
     index = blockchain.new_transaction(values['sender'], values['recipient'], values['amount'])
 
     response = {'message': f'Transaction will be added to Block {index}'}
@@ -234,7 +216,6 @@ def register_nodes():
         'total_nodes': list(blockchain.nodes),
     }
     return jsonify(response), 201
-
 
 @app.route('/nodes/resolve', methods=['GET'])
 def consensus():
